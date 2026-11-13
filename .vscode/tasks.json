@@ -1,0 +1,57 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+        "type": "shell",
+        "command": "${workspaceFolder}/tools/recompile_cimgui.bat",
+        "problemMatcher": ["$zig"],
+        "label": "Recompile ImGui",
+        "group": {
+            "kind": "build",
+        },
+        "presentation": {
+            "echo": false,
+            "reveal": "always",
+            "focus": true,
+            "panel": "shared",
+            "showReuseMessage": true,
+            "clear": true
+        }
+    },
+    {
+        "type": "shell",
+        "command": "zig build -Doptimize=Debug",
+        "problemMatcher": ["$zig"],
+        "label": "Build Debug",
+        "group": {
+            "kind": "build",
+            "isDefault": true
+        },
+        "presentation": {
+            "echo": false,
+            "reveal": "always",
+            "focus": true,
+            "panel": "shared",
+            "showReuseMessage": true,
+            "clear": true
+        }
+    },
+    {
+        "type": "shell",
+        "command": "zig build -Doptimize=ReleaseFast",
+        "problemMatcher": ["$zig"],
+        "label": "Build Release",
+        "group": {
+            "kind": "build",
+        },
+        "presentation": {
+            "echo": false,
+            "reveal": "always",
+            "focus": true,
+            "panel": "shared",
+            "showReuseMessage": true,
+            "clear": true
+        }
+    },
+  ]
+}
