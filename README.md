@@ -184,3 +184,7 @@ zig build run
 ```sh
 zig build gen-bindings
 ```
+
+## Extra tool-tip
+
+When using the editor mode, you can use  the function `imgui_module.screenToViewport` to get the real position mouse position in viewport.

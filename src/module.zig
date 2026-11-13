@@ -243,7 +243,16 @@ pub fn screenToViewport(
         return null;
     }
 
-    return mach.math.vec2(view_dim.x(), view_dim.y());
+    const local = mach.math.vec2(view_dim.x(), view_dim.y());
+    const view_size = mach.math.vec2(
+        self.viewport.bounds_max.x() - self.viewport.bounds_min.x(),
+        self.viewport.bounds_max.y() - self.viewport.bounds_min.y(),
+    );
+    const centered = mach.math.vec2(
+        local.x() - (view_size.x() * 0.5),
+        (view_size.y() * 0.5) - local.y(),
+    );
+    return centered;
 }
 
 pub fn renderIntoPass(
