@@ -17,7 +17,7 @@ Light integration of **Dear ImGui** (using `cimgui` and **Docking**) for **Mach 
 2. Import the `imgui` module in your `build.zig`:
 
    ```zig
-   const imgui_dep = b.dependency("imgui_mach", .{
+   const imgui_dep = b.dependency("imgui_mach_module", .{
        .target = target,
        .optimize = optimize,
    });
