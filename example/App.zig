@@ -121,7 +121,7 @@ pub fn tickApp(
             // We make sure that imgui process event first
             // So we don't propagate the event if imgui already handled it
             .mouse_motion, .mouse_press, .mouse_release, .mouse_scroll => {
-                if (imgui.editor_mode) {
+                if (imgui.viewport.enabled) {
                     if (!imgui.viewport.hovered) continue;
                 } else if (imgui.capturesMouse()) {
                     continue;
@@ -129,8 +129,8 @@ pub fn tickApp(
             },
             .key_press => |ev| {
                 if (ev.key == .f1) {
-                    // Switch between imgui mode (using viewport for game)
-                    imgui.editor_mode = !imgui.editor_mode;
+                    // Switch between imgui mode (using viewport to render in a ImGui window)
+                    imgui.viewport.enabled = !imgui.viewport.enabled;
                     continue;
                 } else if (ev.key == .f2) {
                     // Toggle demo window
@@ -173,7 +173,7 @@ pub fn render(
     const encoder = window.device.createCommandEncoder(&.{ .label = label });
     defer encoder.release();
     // Here we switch the scene target to send our app rendering to imgui viewport
-    const maybe_scene_target: ?*gpu.TextureView = if (imgui.editor_mode)
+    const maybe_scene_target: ?*gpu.TextureView = if (imgui.viewport.enabled)
         imgui.viewport.view
     else
         back_buffer_view;
@@ -198,7 +198,7 @@ pub fn render(
     }
 
     // And then, add ImGui to the render pass
-    try imgui.renderIntoPass(
+    try imgui.addImguiRenderPass(
         core,
         encoder,
         back_buffer_view,

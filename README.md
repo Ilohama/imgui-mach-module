@@ -107,7 +107,7 @@ pub fn tickApp(
         try imgui.processEvent(&event, io);
         switch (event) {
             .mouse_motion, .mouse_press, .mouse_release, .mouse_scroll => {
-                if (imgui.editor_mode) {
+                if (imgui.viewport.enabled) {
                     if (!imgui.viewport.hovered) continue;
                 } else if (imgui.capturesMouse()) {
                     continue;
@@ -140,8 +140,10 @@ pub fn render(
 ) !void {
     // ...
 
-    // Here we switch the scene target to send our app rendering to imgui viewport
-    const maybe_scene_target: ?*gpu.TextureView = if (imgui.editor_mode)
+    // Here we switch the scene target to send our app rendering into imgui viewport
+    // By default, viewport is disabled,
+    // Enable it anywhere you want by setting the imgui.viewport.enbaled to true
+    const maybe_scene_target: ?*gpu.TextureView = if (imgui.viewport.enabled)
         imgui.viewport.view
     else
         back_buffer_view;
@@ -151,7 +153,7 @@ pub fn render(
     }
 
     // And then, add ImGui to the render pass
-    try imgui.renderIntoPass(
+    try imgui.addImguiRenderPass(
         core,
         encoder,
         back_buffer_view,

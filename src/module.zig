@@ -10,6 +10,7 @@ const Buffer = struct {
     cpu_staging: std.ArrayList(u8) = .empty,
 };
 const ViewportInfos = struct {
+    enabled: bool = false,
     texture: ?*gpu.Texture = null,
     view: ?*gpu.TextureView = null,
     bind_group: ?*gpu.BindGroup = null,
@@ -55,7 +56,6 @@ in_frame: bool = false,
 want_capture_mouse: bool = false,
 want_capture_keyboard: bool = false,
 want_text_input: bool = false,
-editor_mode: bool = false,
 last_time: ?std.Io.Timestamp = null,
 viewport: ViewportInfos = .{},
 imgui_impl: ImGuiImpl = .{},
@@ -190,7 +190,7 @@ pub fn startTick(
 
     ImGui.igNewFrame();
     self.in_frame = true;
-    if (self.editor_mode) {
+    if (self.viewport.enabled) {
         const viewport = ImGui.igGetMainViewport();
         _ = ImGui.igDockSpaceOverViewport(
             0,
@@ -198,7 +198,6 @@ pub fn startTick(
             ImGui.ImGuiDockNodeFlags_None,
             null,
         );
-        self.drawEditorPanels();
     }
 }
 
@@ -210,7 +209,7 @@ pub fn endTick(
     try imgui_mutex.lock(io);
     defer imgui_mutex.unlock(io);
 
-    if (self.editor_mode) {
+    if (self.viewport.enabled) {
         self.drawViewportWindow();
     }
     ImGui.igRender();
@@ -226,7 +225,7 @@ pub fn screenToViewport(
     self: *const ImGuiModule,
     screen_pos: mach.math.Vec2,
 ) ?mach.math.Vec2 {
-    if (!self.editor_mode) return screen_pos;
+    if (!self.viewport.enabled) return screen_pos;
 
     const view_dim = mach.math.vec4(
         screen_pos.x() - self.viewport.bounds_min.x(),
@@ -255,7 +254,7 @@ pub fn screenToViewport(
     return centered;
 }
 
-pub fn renderIntoPass(
+pub fn addImguiRenderPass(
     self: *ImGuiModule,
     core: *mach.Core,
     encoder: *gpu.CommandEncoder,
@@ -430,8 +429,8 @@ pub fn renderIntoPass(
 
     const color_attachments = [_]gpu.RenderPassColorAttachment{.{
         .view = back_buffer_view,
-        .clear_value = .{ .r = 0.08, .g = 0.08, .b = 0.08, .a = 1.0 },
-        .load_op = if (self.editor_mode) .clear else .load,
+        .clear_value = .{ .r = 0.01, .g = 0.01, .b = 0.01, .a = 1.0 },
+        .load_op = if (self.viewport.enabled) .clear else .load,
         .store_op = .store,
     }};
     const pass = encoder.beginRenderPass(&gpu.RenderPassDescriptor.init(.{
@@ -510,7 +509,7 @@ pub fn renderIntoPass(
     pass.release();
 }
 
-pub fn ensureViewportTexture(
+fn ensureViewportTexture(
     self: *ImGuiModule,
     device: *gpu.Device,
     format: gpu.Texture.Format,
@@ -860,52 +859,6 @@ fn drawViewportWindow(self: *ImGuiModule) void {
         }
     } else {
         self.viewport.hovered = false;
-    }
-    ImGui.igEnd();
-}
-
-fn drawEditorPanels(self: *ImGuiModule) void {
-    if (!self.in_frame) return;
-
-    drawEditorTopMenu();
-    drawEditorPanelSceneTree();
-    drawEditorPanelInspector();
-    drawEditorPanelConsole();
-}
-
-fn drawEditorTopMenu() void {
-    if (ImGui.igBeginMainMenuBar()) {
-        if (ImGui.igBeginMenu("File", true)) {
-            if (ImGui.igMenuItem_Bool("New", "Ctrl+N", false, true)) {}
-            if (ImGui.igMenuItem_Bool("Save", "Ctrl+S", false, true)) {}
-            ImGui.igEndMenu();
-        }
-        ImGui.igEndMainMenuBar();
-    }
-}
-
-fn drawEditorPanelSceneTree() void {
-    if (ImGui.igBegin("Scene Tree", null, 0)) {
-        ImGui.igText("Entities");
-        ImGui.igSeparator();
-        _ = ImGui.igSelectable_Bool("Camera", false, 0, .{ .x = 0, .y = 0 });
-        _ = ImGui.igSelectable_Bool("Player", true, 0, .{ .x = 0, .y = 0 });
-    }
-    ImGui.igEnd();
-}
-
-fn drawEditorPanelInspector() void {
-    if (ImGui.igBegin("Inspector", null, 0)) {
-        ImGui.igText("Properties");
-        ImGui.igSeparator();
-        ImGui.igText("Position / Scale");
-    }
-    ImGui.igEnd();
-}
-
-fn drawEditorPanelConsole() void {
-    if (ImGui.igBegin("Console", null, 0)) {
-        ImGui.igTextColored(.{ .x = 0.4, .y = 0.9, .z = 0.4, .w = 1.0 }, "[OK] Docking actif.");
     }
     ImGui.igEnd();
 }
