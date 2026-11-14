@@ -80,17 +80,23 @@ pub fn deinit(self: *ImGuiModule) void {
     if (self.initialized) {
         if (self.imgui_impl.vertex_buf.ptr) |vb| vb.release();
         if (self.imgui_impl.index_buf.ptr) |ib| ib.release();
-        self.imgui_impl.font_infos.bind_group.release();
-        self.imgui_impl.font_infos.view.release();
-        self.imgui_impl.font_infos.texture.release();
+
+        if (self.imgui_impl.font_infos.has_font_tex) {
+            self.imgui_impl.font_infos.bind_group.release();
+            self.imgui_impl.font_infos.view.release();
+            self.imgui_impl.font_infos.texture.release();
+        }
+
         self.imgui_impl.common_bind_group.release();
         self.imgui_impl.uniform_buffer.release();
         self.imgui_impl.sampler.release();
         self.imgui_impl.bgl1.release();
         self.imgui_impl.pipeline.release();
-        self.viewport.bind_group.?.release();
-        self.viewport.view.?.release();
-        self.viewport.texture.?.release();
+
+        if (self.viewport.bind_group) |bg| bg.release();
+        if (self.viewport.view) |v| v.release();
+        if (self.viewport.texture) |t| t.release();
+
         self.imgui_impl.vertex_buf.cpu_staging.deinit(self.allocator);
         self.imgui_impl.index_buf.cpu_staging.deinit(self.allocator);
     }
