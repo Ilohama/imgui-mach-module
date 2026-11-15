@@ -85,6 +85,7 @@ fn buildModuleLib(
     cimgui_mod.addIncludePath(imgui_dep.path(""));
     cimgui_mod.addIncludePath(cimgui_dep.path(""));
     cimgui_mod.addCMacro("IMGUI_HAS_DOCK", "");
+    cimgui_mod.addCMacro("IMGUI_USE_WCHAR32", "");
 
     const cimgui_lib = b.addLibrary(.{
         .name = "cimgui",
@@ -105,7 +106,7 @@ fn buildExample(
     imgui_lib: *std.Build.Step.Compile,
     mach_dep: *std.Build.Dependency,
 ) *std.Build.Module {
-    const font_awesome_mod = buildFontAwesome(b);
+    const nf_mod = buildNerdFont(b);
     const app_mod = b.createModule(.{
         .root_source_file = b.path("example/App.zig"),
         .optimize = optimize,
@@ -113,7 +114,7 @@ fn buildExample(
     });
     app_mod.addImport("mach", mach_dep.module("mach"));
     app_mod.addImport("imgui", imgui_lib.root_module);
-    app_mod.addImport("font-awesome", font_awesome_mod);
+    app_mod.addImport("nerd-fonts", nf_mod);
 
     // Have Mach create the executable for us
     const exe = @import("mach").addExecutable(mach_dep.builder, .{
@@ -182,6 +183,7 @@ fn addGenBindingsStep(
     translate_c.addIncludePath(imgui_dep.path(""));
     translate_c.defineCMacro("CIMGUI_DEFINE_ENUMS_AND_STRUCTS", "1");
     translate_c.defineCMacro("IMGUI_HAS_DOCK", "1");
+    translate_c.defineCMacro("IMGUI_USE_WCHAR32", "1");
     translate_c.step.dependOn(&run_luajit.step);
 
     // Compilation et exécution de l'outil pur Zig `tools/fix_cimgui.zig`
@@ -206,31 +208,27 @@ fn addGenBindingsStep(
     gen_step.dependOn(&update_src.step);
 }
 
-fn buildFontAwesome(b: *std.Build) *std.Build.Module {
-    const fa_dep = b.dependency("font_awesome", .{});
-    const gen_fa_exe = b.addExecutable(.{
-        .name = "gen_fa_icons",
+fn buildNerdFont(b: *std.Build) *std.Build.Module {
+    const nf_glyphs = b.dependency("nerd_glyphs", .{});
+    const nf_symbols_dep = b.dependency("nerd_symbols", .{});
+
+    const gen_nf_exe = b.addExecutable(.{
+        .name = "gen_nerd_icons",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("tools/gen_fa_icons.zig"),
+            .root_source_file = b.path("tools/gen_nerd_icons.zig"),
             .target = b.graph.host,
         }),
     });
 
-    const run_gen_fa = b.addRunArtifact(gen_fa_exe);
-    run_gen_fa.addFileArg(fa_dep.path("metadata/icons.json"));
-    const generated_fa_zig = run_gen_fa.addOutputDirectoryArg("font_awesome.zig");
+    const run_gen_nf = b.addRunArtifact(gen_nf_exe);
+    run_gen_nf.addFileArg(nf_glyphs.path("glyphnames.json"));
+    const generated_nf_zig = run_gen_nf.addOutputFileArg("nerd_fonts.zig");
 
-    const fa_mod = b.addModule("font_awesome", .{
-        .root_source_file = generated_fa_zig,
+    const nf_mod = b.addModule("nerd_fonts", .{
+        .root_source_file = generated_nf_zig,
     });
-    fa_mod.addAnonymousImport("fa_solid_otf", .{
-        .root_source_file = fa_dep.path("otfs/Font Awesome 7 Free-Solid-900.otf"),
+    nf_mod.addAnonymousImport("nerd_symbols", .{
+        .root_source_file = nf_symbols_dep.path("SymbolsNerdFont-Regular.ttf"),
     });
-    fa_mod.addAnonymousImport("fa_regular_otf", .{
-        .root_source_file = fa_dep.path("otfs/Font Awesome 7 Free-Regular-400.otf"),
-    });
-    fa_mod.addAnonymousImport("fa_brands_otf", .{
-        .root_source_file = fa_dep.path("otfs/Font Awesome 7 Brands-Regular-400.otf"),
-    });
-    return fa_mod;
+    return nf_mod;
 }

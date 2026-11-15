@@ -4,7 +4,7 @@ const gpu = mach.gpu;
 const ImGui = @import("imgui");
 const ImGuiModule = ImGui.MachModule;
 const acf_data = @embedFile("a-charming-font/Achafont.ttf");
-const font_awesome = @import("font-awesome");
+const nf = @import("nerd-fonts");
 
 const App = @This();
 
@@ -59,7 +59,12 @@ pub fn init(
         .window = window,
         .my_font = imgui.addFontFromMemory(acf_data, 32.0),
     };
-    _ = imgui.mergeIconsFromMemory(font_awesome.solid_otf, 16.0, null);
+    _ = imgui.mergeIconsFromMemory(
+        nf.font_ttf,
+        32,
+        null,
+        .{ .x = -2.0, .y = 2.0 },
+    );
 }
 
 fn setupPipeline(core: *mach.Core, app: *App) !void {
@@ -162,8 +167,8 @@ pub fn tickApp(
         }
         if (ImGui.CLib.igBegin("Test Window", null, ImGui.CLib.ImGuiWindowFlags_None)) {
             ImGui.CLib.igText("Text With new font !");
-            _ = ImGui.CLib.igButton(font_awesome.Icons.home ++ " Home", .{ .x = 0, .y = 0 });
-            ImGui.CLib.igText("Glyphs test :" ++ font_awesome.Icons.keyboard);
+            _ = ImGui.CLib.igButton(nf.Icons.@"fa-house" ++ " Home", .{ .x = 0, .y = 0 });
+            ImGui.CLib.igText("Glyphs test :" ++ nf.Icons.@"md-folder");
         }
         ImGui.CLib.igEnd();
         if (self.my_font != null) {

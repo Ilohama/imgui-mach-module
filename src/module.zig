@@ -663,6 +663,7 @@ pub fn mergeIconsFromMemory(
     font_data: []const u8,
     size_pixels: f32,
     glyph_ranges: ?[*]const ImGui.ImWchar,
+    params: ImGui.ImVec2,
 ) ?*ImGui.ImFont {
     _ = self;
     const io = ImGui.igGetIO_Nil();
@@ -671,10 +672,12 @@ pub fn mergeIconsFromMemory(
     }
 
     const config = ImGui.ImFontConfig_ImFontConfig();
+    defer ImGui.ImFontConfig_destroy(config);
+    config.*.FontDataOwnedByAtlas = false;
     config.*.MergeMode = true;
     config.*.PixelSnapH = true;
-    config.*.FontDataOwnedByAtlas = false;
     config.*.GlyphMinAdvanceX = size_pixels;
+    config.*.GlyphOffset = .{ .x = params.x, .y = params.y };
 
     return ImGui.ImFontAtlas_AddFontFromMemoryTTF(
         io.*.Fonts,
