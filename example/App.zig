@@ -3,6 +3,7 @@ const mach = @import("mach");
 const gpu = mach.gpu;
 const ImGui = @import("imgui");
 const ImGuiModule = ImGui.MachModule;
+const acf_data = @embedFile("a-charming-font/Achafont.ttf");
 
 const App = @This();
 
@@ -34,12 +35,14 @@ pipeline: ?*gpu.RenderPipeline = null,
 app_thread: mach.Thread,
 window: mach.ObjectID,
 show_demo: bool = true,
+my_font: ?*ImGui.CLib.ImFont = null,
 
 pub fn init(
     core: *mach.Core,
     app: *App,
     app_mod: mach.Mod(App),
     core_mod: mach.Mod(mach.Core),
+    imgui: *ImGuiModule,
 ) !void {
     core.on_exit = app_mod.id.deinit;
 
@@ -54,6 +57,7 @@ pub fn init(
         .app_thread = try mach.startThread(core, app_mod.id.tick, core_mod, .app),
         .window = window,
     };
+    app.my_font = imgui.addFontFromMemory(acf_data, 32.0);
 }
 
 fn setupPipeline(core: *mach.Core, app: *App) !void {
@@ -149,9 +153,22 @@ pub fn tickApp(
         }
     }
 
-    if (imgui.isFrameOpened() and self.show_demo) {
+    if (imgui.isFrameOpened()) {
         // We can call anything of cimgui lib as we want
-        ImGui.CLib.igShowDemoWindow(null);
+        if (self.my_font) |font| {
+            ImGui.CLib.igPushFont(font, 72);
+        }
+        if (ImGui.CLib.igBegin("Test Window", null, ImGui.CLib.ImGuiWindowFlags_None)) {
+            ImGui.CLib.igText("Text With new font !");
+        }
+        ImGui.CLib.igEnd();
+        if (self.my_font != null) {
+            ImGui.CLib.igPopFont();
+        }
+
+        if (self.show_demo) {
+            ImGui.CLib.igShowDemoWindow(null);
+        }
     }
 }
 

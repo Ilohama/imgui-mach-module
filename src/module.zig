@@ -592,6 +592,53 @@ pub fn wantsTextInput(self: *const ImGuiModule) bool {
     return self.initialized and self.want_text_input;
 }
 
+pub fn addFrontFromFile(
+    self: *ImGuiModule,
+    path: [:0]const u8,
+    size_pixels: f32,
+) ?*ImGui.ImFont {
+    _ = self;
+    const io = ImGui.igGetIO_Nil();
+    if (io.*.Fonts.*.Fonts.Size == 0) {
+        _ = ImGui.ImFontAtlas_AddFontDefault(io.*.Fonts, null);
+    }
+    return ImGui.ImFontAtlas_AddFontFromFileTTF(
+        io.*.Fonts,
+        path.ptr,
+        size_pixels,
+        null,
+        null,
+    );
+}
+
+pub fn addFontFromMemory(
+    self: *ImGuiModule,
+    font_data: []const u8,
+    size_pixels: f32,
+) ?*ImGui.ImFont {
+    _ = self;
+    const io = ImGui.igGetIO_Nil();
+    if (io.*.Fonts.*.Fonts.Size == 0) {
+        _ = ImGui.ImFontAtlas_AddFontDefault(io.*.Fonts, null);
+    }
+    const config = ImGui.ImFontConfig_ImFontConfig();
+    config.*.FontDataOwnedByAtlas = false;
+    return ImGui.ImFontAtlas_AddFontFromMemoryTTF(
+        io.*.Fonts,
+        @ptrCast(@constCast(font_data.ptr)),
+        @intCast(font_data.len),
+        size_pixels,
+        config,
+        null,
+    );
+}
+
+pub fn setDefaultFont(self: *ImGuiModule, font: *ImGui.ImFont) void {
+    _ = self;
+    const io = ImGui.igGetIO_Nil();
+    io.*.FontDefault = font;
+}
+
 fn initGpuResources(
     self: *ImGuiModule,
     device: *gpu.Device,
