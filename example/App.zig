@@ -4,6 +4,7 @@ const gpu = mach.gpu;
 const ImGui = @import("imgui");
 const ImGuiModule = ImGui.MachModule;
 const acf_data = @embedFile("a-charming-font/Achafont.ttf");
+const font_awesome = @import("font-awesome");
 
 const App = @This();
 
@@ -56,8 +57,9 @@ pub fn init(
     app.* = .{
         .app_thread = try mach.startThread(core, app_mod.id.tick, core_mod, .app),
         .window = window,
+        .my_font = imgui.addFontFromMemory(acf_data, 32.0),
     };
-    app.my_font = imgui.addFontFromMemory(acf_data, 32.0);
+    _ = imgui.mergeIconsFromMemory(font_awesome.solid_otf, 16.0, null);
 }
 
 fn setupPipeline(core: *mach.Core, app: *App) !void {
@@ -160,6 +162,8 @@ pub fn tickApp(
         }
         if (ImGui.CLib.igBegin("Test Window", null, ImGui.CLib.ImGuiWindowFlags_None)) {
             ImGui.CLib.igText("Text With new font !");
+            _ = ImGui.CLib.igButton(font_awesome.Icons.home ++ " Home", .{ .x = 0, .y = 0 });
+            ImGui.CLib.igText("Glyphs test :" ++ font_awesome.Icons.keyboard);
         }
         ImGui.CLib.igEnd();
         if (self.my_font != null) {

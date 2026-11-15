@@ -633,6 +633,59 @@ pub fn addFontFromMemory(
     );
 }
 
+pub fn mergeIconsFromFile(
+    self: *ImGuiModule,
+    path: [:0]const u8,
+    size_pixels: f32,
+    glyph_ranges: ?[*]const ImGui.ImWchar,
+) ?*ImGui.Font {
+    _ = self;
+    const io = ImGui.igGetIO_Nil();
+    if (io.*.Fonts.*.Fonts.Size == 0) {
+        _ = ImGui.ImFontAtlas_AddFontDefault(io.*.Fonts, null);
+    }
+    const config = ImGui.ImFontConfig_ImFontConfig();
+    config.*.MergeMode = true;
+    config.*.PixelSnapH = true;
+    config.*.GlyphMinAdvanceX = size_pixels;
+
+    return ImGui.ImFontAtlas_AddFontFromFileTTF(
+        io.*.Fonts,
+        path.ptr,
+        size_pixels,
+        config,
+        glyph_ranges,
+    );
+}
+
+pub fn mergeIconsFromMemory(
+    self: *ImGuiModule,
+    font_data: []const u8,
+    size_pixels: f32,
+    glyph_ranges: ?[*]const ImGui.ImWchar,
+) ?*ImGui.ImFont {
+    _ = self;
+    const io = ImGui.igGetIO_Nil();
+    if (io.*.Fonts.*.Fonts.Size == 0) {
+        _ = ImGui.ImFontAtlas_AddFontDefault(io.*.Fonts, null);
+    }
+
+    const config = ImGui.ImFontConfig_ImFontConfig();
+    config.*.MergeMode = true;
+    config.*.PixelSnapH = true;
+    config.*.FontDataOwnedByAtlas = false;
+    config.*.GlyphMinAdvanceX = size_pixels;
+
+    return ImGui.ImFontAtlas_AddFontFromMemoryTTF(
+        io.*.Fonts,
+        @ptrCast(@constCast(font_data.ptr)),
+        @intCast(font_data.len),
+        size_pixels,
+        config,
+        glyph_ranges,
+    );
+}
+
 pub fn setDefaultFont(self: *ImGuiModule, font: *ImGui.ImFont) void {
     _ = self;
     const io = ImGui.igGetIO_Nil();

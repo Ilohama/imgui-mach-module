@@ -105,6 +105,7 @@ fn buildExample(
     imgui_lib: *std.Build.Step.Compile,
     mach_dep: *std.Build.Dependency,
 ) *std.Build.Module {
+    const font_awesome_mod = buildFontAwesome(b);
     const app_mod = b.createModule(.{
         .root_source_file = b.path("example/App.zig"),
         .optimize = optimize,
@@ -112,6 +113,7 @@ fn buildExample(
     });
     app_mod.addImport("mach", mach_dep.module("mach"));
     app_mod.addImport("imgui", imgui_lib.root_module);
+    app_mod.addImport("font-awesome", font_awesome_mod);
 
     // Have Mach create the executable for us
     const exe = @import("mach").addExecutable(mach_dep.builder, .{
@@ -202,4 +204,33 @@ fn addGenBindingsStep(
 
     const gen_step = b.step("gen-bindings", "Regen cimgui bindings (cimgui.h, cimgui.cpp, src/cimgui.zig)");
     gen_step.dependOn(&update_src.step);
+}
+
+fn buildFontAwesome(b: *std.Build) *std.Build.Module {
+    const fa_dep = b.dependency("font_awesome", .{});
+    const gen_fa_exe = b.addExecutable(.{
+        .name = "gen_fa_icons",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/gen_fa_icons.zig"),
+            .target = b.graph.host,
+        }),
+    });
+
+    const run_gen_fa = b.addRunArtifact(gen_fa_exe);
+    run_gen_fa.addFileArg(fa_dep.path("metadata/icons.json"));
+    const generated_fa_zig = run_gen_fa.addOutputDirectoryArg("font_awesome.zig");
+
+    const fa_mod = b.addModule("font_awesome", .{
+        .root_source_file = generated_fa_zig,
+    });
+    fa_mod.addAnonymousImport("fa_solid_otf", .{
+        .root_source_file = fa_dep.path("otfs/Font Awesome 7 Free-Solid-900.otf"),
+    });
+    fa_mod.addAnonymousImport("fa_regular_otf", .{
+        .root_source_file = fa_dep.path("otfs/Font Awesome 7 Free-Regular-400.otf"),
+    });
+    fa_mod.addAnonymousImport("fa_brands_otf", .{
+        .root_source_file = fa_dep.path("otfs/Font Awesome 7 Brands-Regular-400.otf"),
+    });
+    return fa_mod;
 }
