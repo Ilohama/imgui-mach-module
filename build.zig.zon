@@ -1,6 +1,6 @@
 .{
     .name = .imgui_mach_module,
-    .version = "0.1.0",
+    .version = "0.1.1",
     .fingerprint = 0x3033c36141b0d886,
     .mach_zig_version = "2026.10.22-mach",
     .paths = .{
