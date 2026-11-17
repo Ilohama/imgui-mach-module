@@ -26,9 +26,11 @@ const FontInfos = struct {
     texture: *gpu.Texture = undefined,
     view: *gpu.TextureView = undefined,
 };
+const FRAMES_IN_FLIGHT = 3;
 const ImGuiImpl = struct {
-    vertex_buf: Buffer = .{},
-    index_buf: Buffer = .{},
+    frame_index: usize = 0,
+    vertex_bufs: [FRAMES_IN_FLIGHT]Buffer = .{ .{}, .{}, .{} },
+    index_bufs: [FRAMES_IN_FLIGHT]Buffer = .{ .{}, .{}, .{} },
     sampler: *gpu.Sampler = undefined,
     pipeline: *gpu.RenderPipeline = undefined,
     bgl1: *gpu.BindGroupLayout = undefined,
@@ -66,6 +68,14 @@ pub fn init(
 ) !void {
     self.* = .{
         .allocator = allocator,
+        .viewport = .{
+            .enabled = true,
+            .texture = null,
+            .view = null,
+            .bind_group = null,
+            .size = .{ 0, 0 },
+            .desired_size = .{ 0, 0 },
+        },
     };
     const ctx = ImGui.igCreateContext(null) orelse return error.ContextFailed;
     ImGui.igSetCurrentContext(ctx);
@@ -78,9 +88,6 @@ pub fn init(
 
 pub fn deinit(self: *ImGuiModule) void {
     if (self.initialized) {
-        if (self.imgui_impl.vertex_buf.ptr) |vb| vb.release();
-        if (self.imgui_impl.index_buf.ptr) |ib| ib.release();
-
         if (self.imgui_impl.font_infos.has_font_tex) {
             self.imgui_impl.font_infos.bind_group.release();
             self.imgui_impl.font_infos.view.release();
@@ -93,12 +100,27 @@ pub fn deinit(self: *ImGuiModule) void {
         self.imgui_impl.bgl1.release();
         self.imgui_impl.pipeline.release();
 
-        if (self.viewport.bind_group) |bg| bg.release();
-        if (self.viewport.view) |v| v.release();
-        if (self.viewport.texture) |t| t.release();
+        if (self.viewport.bind_group) |bg| {
+            bg.release();
+            self.viewport.bind_group = null;
+        }
+        if (self.viewport.view) |v| {
+            v.release();
+            self.viewport.view = null;
+        }
+        if (self.viewport.texture) |t| {
+            t.release();
+            self.viewport.texture = null;
+        }
 
-        self.imgui_impl.vertex_buf.cpu_staging.deinit(self.allocator);
-        self.imgui_impl.index_buf.cpu_staging.deinit(self.allocator);
+        for (&self.imgui_impl.vertex_bufs) |*vb| {
+            if (vb.ptr) |ptr| ptr.release();
+            vb.cpu_staging.deinit(self.allocator);
+        }
+        for (&self.imgui_impl.index_bufs) |*ib| {
+            if (ib.ptr) |ptr| ptr.release();
+            ib.cpu_staging.deinit(self.allocator);
+        }
     }
     ImGui.igDestroyContext(null);
 }
@@ -172,7 +194,6 @@ pub fn startTick(
 
     const window = core.windows.getValue(window_id.?);
     if (window.width == 0 or window.height == 0) return;
-    self.ensureViewportTexture(window.device, window.swap_chain_descriptor.format);
 
     const now = std.Io.Clock.awake.now(main_io);
     const dt: f32 = if (self.last_time) |last| blk: {
@@ -374,28 +395,33 @@ pub fn addImguiRenderPass(
 
     const aligned_vtx_size = std.mem.alignForward(u64, total_vtx_size, 256);
     const aligned_idx_size = std.mem.alignForward(u64, total_idx_size, 256);
+    const slot = self.imgui_impl.frame_index % FRAMES_IN_FLIGHT;
+    self.imgui_impl.frame_index +%= 1;
 
-    if (self.imgui_impl.vertex_buf.ptr == null or self.imgui_impl.vertex_buf.size < aligned_vtx_size) {
-        if (self.imgui_impl.vertex_buf.ptr) |vb| vb.release();
-        self.imgui_impl.vertex_buf.size = aligned_vtx_size + 4096;
-        self.imgui_impl.vertex_buf.ptr = window.device.createBuffer(&.{
+    const vtx_buf = &self.imgui_impl.vertex_bufs[slot];
+    const idx_buf = &self.imgui_impl.index_bufs[slot];
+
+    if (vtx_buf.ptr == null or vtx_buf.size < aligned_vtx_size) {
+        if (vtx_buf.ptr) |vb| vb.release();
+        vtx_buf.size = aligned_vtx_size + 4096;
+        vtx_buf.ptr = window.device.createBuffer(&.{
             .label = "imgui_vtx_buf",
             .usage = .{ .vertex = true, .copy_dst = true },
-            .size = self.imgui_impl.vertex_buf.size,
+            .size = vtx_buf.size,
         });
     }
-    if (self.imgui_impl.index_buf.ptr == null or self.imgui_impl.index_buf.size < aligned_idx_size) {
-        if (self.imgui_impl.index_buf.ptr) |ib| ib.release();
-        self.imgui_impl.index_buf.size = aligned_idx_size + 4096;
-        self.imgui_impl.index_buf.ptr = window.device.createBuffer(&.{
+    if (idx_buf.ptr == null or idx_buf.size < aligned_idx_size) {
+        if (idx_buf.ptr) |ib| ib.release();
+        idx_buf.size = aligned_idx_size + 4096;
+        idx_buf.ptr = window.device.createBuffer(&.{
             .label = "imgui_idx_buf",
             .usage = .{ .index = true, .copy_dst = true },
-            .size = self.imgui_impl.index_buf.size,
+            .size = idx_buf.size,
         });
     }
 
-    self.imgui_impl.vertex_buf.cpu_staging.clearRetainingCapacity();
-    self.imgui_impl.index_buf.cpu_staging.clearRetainingCapacity();
+    vtx_buf.cpu_staging.clearRetainingCapacity();
+    idx_buf.cpu_staging.clearRetainingCapacity();
 
     const cmd_lists = draw_data.*.CmdLists.Data[0..@intCast(draw_data.*.CmdLists.Size)];
     for (cmd_lists) |cmd_list| {
@@ -404,32 +430,33 @@ pub fn addImguiRenderPass(
         if (vtx_count > 0) {
             const vtx_bytes = vtx_count * @sizeOf(ImGui.ImDrawVert);
             const raw_vtx_ptr: [*]const u8 = @ptrCast(cmd_list.*.VtxBuffer.Data);
-            try self.imgui_impl.vertex_buf.cpu_staging.appendSlice(self.allocator, raw_vtx_ptr[0..vtx_bytes]);
+            try vtx_buf.cpu_staging.appendSlice(self.allocator, raw_vtx_ptr[0..vtx_bytes]);
         }
         if (idx_count > 0) {
             const raw_idx_bytes = idx_count * @sizeOf(ImGui.ImDrawIdx);
             const raw_idx_ptr: [*]const u8 = @ptrCast(cmd_list.*.IdxBuffer.Data);
-            try self.imgui_impl.index_buf.cpu_staging.appendSlice(self.allocator, raw_idx_ptr[0..raw_idx_bytes]);
+            try idx_buf.cpu_staging.appendSlice(self.allocator, raw_idx_ptr[0..raw_idx_bytes]);
             const aligned_idx_bytes = std.mem.alignForward(usize, raw_idx_bytes, 4);
             const padding = aligned_idx_bytes - raw_idx_bytes;
             if (padding > 0) {
-                try self.imgui_impl.index_buf.cpu_staging.appendNTimes(self.allocator, 0, padding);
+                try vtx_buf.cpu_staging.appendNTimes(self.allocator, 0, 0); // No-op
+                try idx_buf.cpu_staging.appendNTimes(self.allocator, 0, padding);
             }
         }
     }
 
-    if (self.imgui_impl.vertex_buf.cpu_staging.items.len > 0) {
+    if (vtx_buf.cpu_staging.items.len > 0) {
         window.queue.writeBuffer(
-            self.imgui_impl.vertex_buf.ptr.?,
+            vtx_buf.ptr.?,
             0,
-            self.imgui_impl.vertex_buf.cpu_staging.items,
+            vtx_buf.cpu_staging.items,
         );
     }
-    if (self.imgui_impl.index_buf.cpu_staging.items.len > 0) {
+    if (idx_buf.cpu_staging.items.len > 0) {
         window.queue.writeBuffer(
-            self.imgui_impl.index_buf.ptr.?,
+            idx_buf.ptr.?,
             0,
-            self.imgui_impl.index_buf.cpu_staging.items,
+            idx_buf.cpu_staging.items,
         );
     }
 
@@ -455,9 +482,9 @@ pub fn addImguiRenderPass(
     pass.setPipeline(self.imgui_impl.pipeline);
     pass.setBindGroup(0, self.imgui_impl.common_bind_group, null);
     pass.setBindGroup(1, self.imgui_impl.font_infos.bind_group, null);
-    pass.setVertexBuffer(0, self.imgui_impl.vertex_buf.ptr.?, 0, self.imgui_impl.vertex_buf.size);
+    pass.setVertexBuffer(0, vtx_buf.ptr.?, 0, vtx_buf.size);
     const idx_format: gpu.IndexFormat = if (@sizeOf(ImGui.ImDrawIdx) == 2) .uint16 else .uint32;
-    pass.setIndexBuffer(self.imgui_impl.index_buf.ptr.?, idx_format, 0, self.imgui_impl.index_buf.size);
+    pass.setIndexBuffer(idx_buf.ptr.?, idx_format, 0, idx_buf.size);
     var global_vtx_offset: i32 = 0;
     var global_idx_offset: u32 = 0;
     const clip_off = draw_data.*.DisplayPos;
@@ -515,12 +542,16 @@ pub fn addImguiRenderPass(
     pass.release();
 }
 
-fn ensureViewportTexture(
+pub fn ensureViewportTexture(
     self: *ImGuiModule,
     device: *gpu.Device,
     format: gpu.Texture.Format,
-) void {
+    io: std.Io,
+) !void {
     if (!self.initialized) return;
+
+    try imgui_mutex.lock(io);
+    defer imgui_mutex.unlock(io);
 
     const w = self.viewport.desired_size[0];
     const h = self.viewport.desired_size[1];
